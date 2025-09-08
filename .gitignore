@@ -1,3 +1,6 @@
+# cached files
+__pycache__/
+
 # environment
 /excel3d_envi/
 
