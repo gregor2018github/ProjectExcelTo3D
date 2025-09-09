@@ -3,10 +3,13 @@ __pycache__/
 
 # environment
 /excel3d_envi/
+*_envi/
+venv/
+env/
 
 # test script
 test_lab.py
 
-# actual data
-/Data.xlsx
-/Data.csv
+# xlsx and csv files (actual data)
+*.xlsx
+*.csv

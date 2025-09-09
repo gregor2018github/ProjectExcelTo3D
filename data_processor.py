@@ -9,7 +9,6 @@ import plotly.graph_objects as go
 import numpy as np
 import pandas as pd
 from dash import Dash, dcc, html, Input, Output
-import config
 
 # GENERAL FUNCTIONS
 
@@ -22,27 +21,96 @@ def identify_files_in_base_folder() -> list:
     files = [f for f in os.listdir(base_folder) if os.path.isfile(os.path.join(base_folder, f)) and not f.startswith('.') and f.endswith(('.xlsx', '.csv'))]
     return files
 
-def open_xlsx_to_df(file_name: str, sheet_name: str) -> pd.DataFrame:
+def choose_file_by_terminal(files: list) -> None:
     """
-    Open a given tab from a given excel file and return a pandas DataFrame of the found table.
+    Give the user the option to choose a file by entering the corresponding number in the terminal. Returns the selected file name.
     """
-    df = pd.read_excel(file_name, sheet_name=sheet_name)
-    return df
+    print("Found files: ")
+    i = 1
+    for f in files:
+        print(f"({i}) - {f}")
+        i += 1
+    print("\nPlease choose a file by entering the corresponding number (e.g., 1):")
+    while True:
+        try:
+            choice = int(input("Your choice: "))
+            if 1 <= choice <= len(files):
+                selected_file = files[choice - 1]
+                print(f"You selected: {selected_file}")
+                return selected_file
+            else:
+                print(f"Please enter a number between 1 and {len(files)}.")
+        except ValueError:
+            print("Invalid input. Please enter a valid number.")
 
-def open_csv_to_df(file_name: str, sep: str) -> pd.DataFrame:
+def choose_sheet_by_terminal(file_name: str) -> str:
     """
-    Open a CSV file with a certain separator and return a pandas DataFrame.
+    If the given file is an excel file, give the user the option to choose a sheet by entering the corresponding number in the terminal.
     """
-    df = pd.read_csv(file_name, sep=sep)
-    return df
 
-def print_all_col_names_to_console(df: pd.DataFrame) -> None:
+    xls = pd.ExcelFile(file_name)
+    sheets = xls.sheet_names
+    # if only one sheet available, automatically return it
+    if len(sheets) == 1:
+        return sheets[0]
+    print("\nAvailable sheets in the Excel file:")
+    for i, sheet in enumerate(sheets, start=1):
+        print(f"({i}) - {sheet}")
+
+    print("\nPlease choose a sheet by entering the corresponding number (e.g., 1):")
+    while True:
+        try:
+            choice = int(input("Your choice: "))
+            if 1 <= choice <= len(sheets):
+                selected_sheet = sheets[choice - 1]
+                print(f"You selected: {selected_sheet}")
+                return selected_sheet
+            else:
+                print(f"Please enter a number between 1 and {len(sheets)}.")
+        except ValueError:
+            print("Invalid input. Please enter a valid number.")
+
+def open_file_to_df(file_name: str) -> pd.DataFrame:
     """
-    Print all column names and datatypes of the DataFrame to the console.
+    Open a given file (either .xlsx or .csv) and return a pandas DataFrame of the found table.
     """
-    print("\nAll column names and datatypes:")
-    for col in df.columns:
-        print(f" - {col}: {df[col].dtype}")
+    if file_name.endswith('.xlsx'):
+        selected_sheet = choose_sheet_by_terminal(file_name)
+        return pd.read_excel(file_name, sheet_name=selected_sheet)
+    elif file_name.endswith('.csv'):
+        return pd.read_csv(file_name)
+    else:
+        raise ValueError("Unsupported file format. Please provide a .xlsx or .csv file.")
+
+def choose_columns_by_terminal(df: pd.DataFrame) -> tuple:
+    """
+    Give the user the option to choose initiating settings for the 3D graph by entering the corresponding number in the terminal.
+    """
+    columns = df.columns
+    print("\nAvailable columns in the data frame:")
+    for i, col in enumerate(columns, start =1):
+        print(f"({i}) - {col}")
+
+    def _ask_for(column_role: str) -> str:
+        prompt = f"\nPlease choose the {column_role} column by entering the corresponding number (e.g., 1): "
+        while True:
+            try:
+                choice = int(input(prompt))
+                if 1 <= choice <= len(columns):
+                    selected = columns[choice - 1]
+                    print(f"You selected for {column_role}: {selected}")
+                    return selected
+                else:
+                    print(f"Please enter a number between 1 and {len(columns)}.")
+            except ValueError:
+                print("Invalid input. Please enter a valid number.")
+    
+    x_col = _ask_for("X-Axis")
+    y_col = _ask_for("Y-Axis")
+    z_col = _ask_for("Z-Axis")
+    color_col = _ask_for("Color-Coding")
+    
+    return x_col, y_col, z_col, color_col
 
 def get_numeric_columns(df: pd.DataFrame) -> list:
     """
@@ -137,7 +205,7 @@ def build_3d_figure(df: pd.DataFrame, x_col: str, y_col: str, z_col: str, color_
     )
     return fig
 
-def build_dash_app(df: pd.DataFrame) -> Dash:
+def build_dash_app(df: pd.DataFrame, x_col_start: str, y_col_start: str, z_col_start: str, color_coding_start: str) -> Dash:
     """
     Build and return a Dash app instance.
     """
@@ -154,7 +222,7 @@ def build_dash_app(df: pd.DataFrame) -> Dash:
             dcc.Dropdown(
                 id="color-col",
                 options=[{"label": c, "value": c} for c in all_columns],
-                value=config.COLOR_CODING_DIMENSION,
+                value=color_coding_start,
                 clearable=False
             )
         ], style=dropdown_style),
@@ -163,7 +231,7 @@ def build_dash_app(df: pd.DataFrame) -> Dash:
             dcc.Dropdown(
                 id="x-col",
                 options=[{"label": c, "value": c} for c in all_columns],
-                value=config.COLUMN_X,
+                value=x_col_start,
                 clearable=False
             )
         ], style=dropdown_style),
@@ -172,7 +240,7 @@ def build_dash_app(df: pd.DataFrame) -> Dash:
             dcc.Dropdown(
                 id="y-col",
                 options=[{"label": c, "value": c} for c in all_columns],
-                value=config.COLUMN_Y,
+                value=y_col_start,
                 clearable=False
             )
         ], style=dropdown_style),
@@ -181,14 +249,14 @@ def build_dash_app(df: pd.DataFrame) -> Dash:
             dcc.Dropdown(
                 id="z-col",
                 options=[{"label": c, "value": c} for c in all_columns],
-                value=config.COLUMN_Z,
+                value=z_col_start,
                 clearable=False
             )
         ], style=dropdown_style),
 
         dcc.Graph(
             id="scatter-3d",
-            figure=build_3d_figure(df, config.COLUMN_X, config.COLUMN_Y, config.COLUMN_Z, config.COLOR_CODING_DIMENSION)
+            figure=build_3d_figure(df, x_col_start, y_col_start, z_col_start, color_coding_start)
         )
     ])
 
