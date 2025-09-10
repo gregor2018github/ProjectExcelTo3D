@@ -6,6 +6,7 @@ This script holds functions for data processing.
 # IMPORTS
 
 import plotly.graph_objects as go
+import plotly.express as px
 import numpy as np
 import pandas as pd
 from dash import Dash, dcc, html, Input, Output
@@ -175,47 +176,88 @@ def change_data_types_to_numeric(df: pd.DataFrame, col_name: str):
 def build_3d_figure(df: pd.DataFrame, x_col: str, y_col: str, z_col: str, color_col: str) -> go.Figure:
     """
     Build a 3D scatter plot figure for given column selections.
-    Ensures axis titles, colorbar title, and tooltips reflect current selections.
+    Supports both continuous (numeric) and discrete (categorical) color coding.
     """
-    # Prepare numeric arrays
-    # x_data = change_data_types_to_numeric(df, x_col)
-    # y_data = change_data_types_to_numeric(df, y_col)
-    # z_data = change_data_types_to_numeric(df, z_col)
-    # color_data = change_data_types_to_numeric(df, color_col)
+    # Prepare arrays
     x_data = df[x_col]
     y_data = df[y_col]
     z_data = df[z_col]
     color_data = df[color_col]
 
-    # Customdata: [row_index, color_value] to show color value in tooltip
-    row_idx = np.arange(len(df))
-    customdata = np.column_stack((row_idx, color_data))
+    fig = go.Figure()
 
-    hovertemplate = (
-        "Row %{customdata[0]}"
-        f"<br>{x_col}: %{{x}}"
-        f"<br>{y_col}: %{{y}}"
-        f"<br>{z_col}: %{{z}}"
-        f"<br>{color_col}: %{{customdata[1]}}"
-        "<extra></extra>"
+    # Determine if color column should be treated as numeric (continuous) or categorical (discrete)
+    is_numeric_color = (
+        pd.api.types.is_numeric_dtype(color_data)
+        or pd.api.types.is_bool_dtype(color_data)
+        or pd.api.types.is_datetime64_any_dtype(color_data)
+        or pd.api.types.is_timedelta64_dtype(color_data)
     )
 
-    fig = go.Figure(data=[go.Scatter3d(
-        x=x_data,
-        y=y_data,
-        z=z_data,
-        mode="markers",
-        marker=dict(
-            size=3,
-            color=color_data,
-            colorscale="Viridis",
-            colorbar=dict(title=dict(text=color_col)),
-            opacity=0.8
-        ),
-        customdata=customdata,
-        hovertemplate=hovertemplate,
-        name="Data Points"
-    )])
+    if is_numeric_color:
+        # Continuous color scale with colorbar
+        row_idx = np.arange(len(df))
+        customdata = np.column_stack((row_idx, color_data))
+        hovertemplate = (
+            "Row %{customdata[0]}"
+            f"<br>{x_col}: %{{x}}"
+            f"<br>{y_col}: %{{y}}"
+            f"<br>{z_col}: %{{z}}"
+            f"<br>{color_col}: %{{customdata[1]}}"
+            "<extra></extra>"
+        )
+        fig.add_trace(go.Scatter3d(
+            x=x_data,
+            y=y_data,
+            z=z_data,
+            mode="markers",
+            marker=dict(
+                size=3,
+                color=color_data,
+                colorscale="Viridis",
+                colorbar=dict(title=dict(text=color_col)),
+                opacity=0.8
+            ),
+            customdata=customdata,
+            hovertemplate=hovertemplate,
+            name="Data Points"
+        ))
+    else:
+        # Discrete categories: one trace per category with legend
+        cats = pd.Categorical(color_data.fillna("Unknown"))
+        unique_cats = list(cats.categories)
+        palette = getattr(px.colors.qualitative, "Plotly", [
+            "#636EFA", "#EF553B", "#00CC96", "#AB63FA", "#FFA15A",
+            "#19D3F3", "#FF6692", "#B6E880", "#FF97FF", "#FECB52"
+        ])
+        color_map = {cat: palette[i % len(palette)] for i, cat in enumerate(unique_cats)}
+
+        row_idx = np.arange(len(df))
+        for cat in unique_cats:
+            mask = (cats == cat)
+            customdata = np.column_stack((row_idx[mask], np.array([cat] * int(mask.sum()))))
+            hovertemplate = (
+                "Row %{customdata[0]}"
+                f"<br>{x_col}: %{{x}}"
+                f"<br>{y_col}: %{{y}}"
+                f"<br>{z_col}: %{{z}}"
+                f"<br>{color_col}: %{{customdata[1]}}"
+                "<extra></extra>"
+            )
+            fig.add_trace(go.Scatter3d(
+                x=x_data[mask],
+                y=y_data[mask],
+                z=z_data[mask],
+                mode="markers",
+                marker=dict(size=3, color=color_map[cat], opacity=0.8),
+                name=str(cat),
+                customdata=customdata,
+                hovertemplate=hovertemplate,
+                showlegend=True
+            ))
+
+        # Add legend title for categorical color
+        fig.update_layout(legend=dict(title=dict(text=color_col)))
 
     fig.update_layout(
         title="3D Scatter Plot of Fault Groups - Interactive",
