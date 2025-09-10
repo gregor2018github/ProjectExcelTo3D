@@ -6,9 +6,10 @@ SCRIPT STEPS:
 1. Identify all files in the project base folder and present them to the user.
 2. Let the user choose a file via the terminal.
 3. Load the chosen file into a pandas DataFrame.
-4. Let the user select X, Y, Z columns and an optional color-coding column from the DataFrame.
-5. Build a Dash app that renders an interactive Plotly 3D scatter plot from the selected columns.
-6. Open the default web browser to the Dash app and run the server locally.
+4. Let the user decide which ordinal columns to keep in text format and which ones to convert to integer.
+5. Let the user select X, Y, Z columns and a color-coding column from the DataFrame.
+6. Build a Dash app that renders an interactive Plotly 3D scatter plot from the selected columns.
+7. Open the default web browser to the Dash app and run the server locally.
 """
 
 # IMPORTS
@@ -25,6 +26,9 @@ def main():
     # load data
     df = data_processor.open_file_to_df(selection)
     print(f"Dataframe loaded with following dimensions: Rows: {df.shape[0]}, Columns: {df.shape[1]}")
+
+    # make user choose which columns to keep in text format and which ones to convert to integer
+    df = data_processor.change_ordinal_cols_by_terminal(df)
 
     # make user select the columns and color coding to display
     x_col_start, y_col_start, z_col_start, color_coding_start = data_processor.choose_columns_by_terminal(df)

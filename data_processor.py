@@ -112,17 +112,39 @@ def choose_columns_by_terminal(df: pd.DataFrame) -> tuple:
     
     return x_col, y_col, z_col, color_col
 
-def get_numeric_columns(df: pd.DataFrame) -> list:
+def change_ordinal_cols_by_terminal(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Get all numeric columns from the DataFrame that can be used for plotting.
+    Let the user decide which ordinal columns to keep in text format and which ones to convert to integer.
     """
-    numeric_cols = []
-    for col in df.columns:
-        if pd.api.types.is_numeric_dtype(df[col]) or pd.api.types.is_datetime64_any_dtype(df[col]) or pd.api.types.is_timedelta64_dtype(df[col]):
-            numeric_cols.append(col)
-    return numeric_cols
+    columns = df.columns
+    print("\nAvailable columns in the data frame:")
+    for i, col in enumerate(columns, start=1):
+        print(f"({i}) - {col} (dtype: {df[col].dtype})")
 
-def prepare_column_data(df: pd.DataFrame, col_name: str):
+    print("\nFor each column, enter 't' to keep as text or 'n' to convert to numeric (integer/float).")
+    
+    for col in columns:
+        
+        # ask user for each column, only if it's object or categorical dtype
+        if df[col].dtype in ['object', 'category']:
+            while True:
+                choice = input(f"Column '{col}': (t/n)? ").strip().lower()
+                if choice == 't':
+                    df[col] = df[col].astype(str).fillna('Unknown')
+                    break
+                elif choice == 'n':
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                    break
+                else:
+                    print("Invalid input. Please enter 't' or 'n'.")
+        
+        # fill NaN in columns that are already numeric
+        elif pd.api.types.is_numeric_dtype(df[col]):
+            df[col] = df[col].fillna(0)
+    
+    return df
+
+def change_data_types_to_numeric(df: pd.DataFrame, col_name: str):
     """
     Prepare column data for plotting by handling different data types.
     """
@@ -156,10 +178,14 @@ def build_3d_figure(df: pd.DataFrame, x_col: str, y_col: str, z_col: str, color_
     Ensures axis titles, colorbar title, and tooltips reflect current selections.
     """
     # Prepare numeric arrays
-    x_data = prepare_column_data(df, x_col)
-    y_data = prepare_column_data(df, y_col)
-    z_data = prepare_column_data(df, z_col)
-    color_data = prepare_column_data(df, color_col)
+    # x_data = change_data_types_to_numeric(df, x_col)
+    # y_data = change_data_types_to_numeric(df, y_col)
+    # z_data = change_data_types_to_numeric(df, z_col)
+    # color_data = change_data_types_to_numeric(df, color_col)
+    x_data = df[x_col]
+    y_data = df[y_col]
+    z_data = df[z_col]
+    color_data = df[color_col]
 
     # Customdata: [row_index, color_value] to show color value in tooltip
     row_idx = np.arange(len(df))
